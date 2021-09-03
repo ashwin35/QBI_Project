@@ -1,0 +1,113 @@
+---
+title: "Final Project"
+author: "Ashwin Shankar"
+date: "11/3/2020"
+output: html_document
+---
+```{r preliminaries}
+rm(list=ls())
+library(gplots)
+library(rio)
+library(ggplot2)
+library(RColorBrewer)
+library(ISLR)
+library(latex2exp)
+library(glmnet)
+library(leaps)
+library(MASS)
+library(rpart)
+library(randomForest)
+library(rpart.plot)
+
+theme_set(theme_bw(base_size = 14))
+cols <- brewer.pal(9, "Set1")
+setwd("C:/Users/ashwi/OneDrive/Documents")
+
+
+
+```
+
+
+
+```{r Summaries}
+stats<- import("QB stats.xlsx")
+stats[is.na(stats)] <- 0
+
+
+plot(stats$Cmp, stats$Int, xlab="Completions", ylab="Interceptions")
+
+
+plot(stats$`Cmp Pct`, stats$`Int Pct`, xlab="Completion Percentage", ylab="Interception Percentage")
+
+plot(stats$`Sk Pct`, stats$`Int Pct`, xlab="Sack Percentage", ylab="Interception Percentage")
+
+
+```
+
+
+
+
+
+
+```{r Stuff}
+
+
+
+n <- nrow(stats)
+n_train <- floor(0.8 * n)
+n_test <- n - n_train
+
+set.seed(123)
+idx_test <- sample(1:n, n_test, replace = F)
+stats_ts <- stats[idx_test,]
+stats_tr <- stats[-idx_test,]
+
+# Create grid where we make prediction
+xgrid <- seq(min(stats$Sk), max(stats$Sk), length.out = 1000)
+
+
+# Fit a deep tree
+deep_tree <- rpart(Int ~ Att+Sk+QBR+TD+`Cmp Pct`, method = "anova", data = stats_tr,
+                   control = rpart.control(minsplit = 5, cp = .0005))
+cat('Size of deep tree:', length(unique(deep_tree$where)), '\n')
+
+rpart.plot(deep_tree, clip.right.labs = FALSE, under = TRUE, digits = 4)
+
+
+```
+
+
+
+
+```{r best tree}
+best_alpha <- deep_tree$cptable[which.min(deep_tree$cptable[,"xerror"]),"CP"]
+cat('Best alpha:', best_alpha, '\n')
+
+best_tree <- prune(deep_tree, cp = best_alpha)
+cat('Size of best tree:', length(unique(best_tree$where)), '\n')
+
+
+rpart.plot(best_tree, clip.right.labs = FALSE, under = TRUE, digits = 4)
+
+
+```
+
+
+```{r Testing}
+pred_y <- as.numeric(predict(best_tree, newdata = stats_ts))
+err_all <- (pred_y - stats_ts$Int)^2
+
+plot(stats_ts$Int, pred_y, pch = 16, xlab = 'observed', ylab = 'predicted')
+abline(0, 1, lwd = 2, col = 'red')
+
+plot(importance(best_tree), xlab = 'variables', ylab = 'importance', 
+     xaxt = 'n', type = 'h', lwd = 3)
+axis(1, at = 1:length(importance(best_tree)), labels = rownames(importance(best_tree)))
+
+
+
+
+
+
+```
+
